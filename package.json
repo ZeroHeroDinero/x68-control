@@ -1,0 +1,67 @@
+{
+  "name": "x68-control",
+  "version": "1.1.0",
+  "description": "Settings app for the Attack Shark X68 HE",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis --x64"
+  },
+  "keywords": [],
+  "author": "Peter",
+  "license": "ISC",
+  "devDependencies": {
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "@fontsource/barlow": "^5.3.0",
+    "@fontsource/barlow-semi-condensed": "^5.3.0",
+    "electron-updater": "^6.8.9"
+  },
+  "productName": "X68 Control",
+  "build": {
+    "appId": "gg.siegeiq.x68control",
+    "productName": "X68 Control",
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "build/icon.png"
+    ],
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": true
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "X68 Control",
+      "runAfterFinish": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "artifactName": "X68-Control-Setup-${version}.exe",
+      "include": "build/installer.nsh"
+    },
+    "electronLanguages": [
+      "en-US"
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ZeroHeroDinero",
+        "repo": "x68-control",
+        "releaseType": "release"
+      }
+    ]
+  }
+}
