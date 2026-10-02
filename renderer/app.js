@@ -4,6 +4,7 @@ import {
   LAYOUT, LAYOUT_WIDTH, LAYOUT_ROWS, BY_POS, GROUPS, HID_NAMES, PICKER_SECTIONS, SPECIAL_ACTIONS,
   CODE_TO_HID, SWITCH_TYPES, describeAction, sameBytes, shortName, variantFor, setVariant, VARIANT,
 } from './keymap.js';
+import { initMouse, renderMouse, mouseSubtitle, mouseState } from './mouse/ui.js';
 
 const $ = sel => document.querySelector(sel);
 const el = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstElementChild; };
@@ -35,6 +36,8 @@ const S = {
   macro: null,
   live: { on: false, depth: 0, pos: null, last: 0 },
   busy: false,
+  device: 'keyboard',
+  mview: 'dpi',
 };
 
 const DEFAULT_ACTION = pos => {
@@ -107,7 +110,7 @@ function showConnect(title = 'Plug in your X68 HE', text = 'Use the USB cable. T
   $('#connectText').textContent = text;
   $('#loadProgress').classList.add('hidden');
   $('#connectBtn').classList.remove('hidden');
-  $('#deviceLine').textContent = 'Not connected';
+  renderShell();
 }
 
 function progress(frac, text) {
@@ -134,7 +137,7 @@ async function load(kb) {
   buildBoard();
   await repairBottomRow();
   if (!kb._subscribed) { kb.onEvent(onKeyboardEvent); kb._subscribed = true; }
-  $('#deviceLine').textContent = `Firmware ${info.version}${DEMO ? ' (preview)' : ''}`;
+  S.kbLine = `X68 HE · firmware ${info.version}${DEMO ? ' (preview)' : ''}`;
   $('#connectOverlay').classList.add('hidden');
   renderAll();
 }
@@ -342,6 +345,7 @@ function drawLive() {
 
 // press a key on the keyboard to select it
 window.addEventListener('keydown', e => {
+  if (S.device !== 'keyboard') return;
   if (S.macro?.recording) return;
   if (e.target.matches('input, select, textarea')) return;
   if (S.pickerTab === 'press' && S.view === 'remap' && S.capturing) return;
@@ -365,7 +369,26 @@ window.addEventListener('keyup', e => {
 });
 
 // ---------------------------------------------------------------- shell
+function renderShell() {
+  const mouse = S.device === 'mouse';
+  document.body.classList.toggle('mode-mouse', mouse);
+  $('#nav').classList.toggle('hidden', mouse);
+  $('#mouseNav').classList.toggle('hidden', !mouse);
+  $('#sideFoot').classList.toggle('hidden', mouse);
+  document.querySelectorAll('#devSwitch button').forEach(b => b.classList.toggle('on', b.dataset.dev === S.device));
+  document.querySelectorAll('#mouseNav button').forEach(b => b.classList.toggle('active', b.dataset.mview === S.mview));
+  $('#kbDot').classList.toggle('live', !!S.kb);
+  $('#msDot').classList.toggle('live', !!mouseState.dev);
+  $('#deviceLine').textContent = mouse ? mouseSubtitle() : (S.kb ? S.kbLine : 'Keyboard not connected');
+}
+
 function renderAll() {
+  renderShell();
+  if (S.device === 'mouse') {
+    $('#boardWrap').classList.add('hidden');
+    renderPanel();
+    return;
+  }
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('active', b.dataset.view === S.view));
   document.querySelectorAll('#profiles button').forEach(b => b.classList.toggle('active', +b.dataset.p === S.profile));
   renderBoardChrome();
@@ -417,11 +440,28 @@ function renderPanel() {
   const p = $('#panel');
   const fns = { actuation: renderActuation, advanced: renderAdvanced, remap: renderRemap, lighting: renderLighting, macros: renderMacros, settings: renderSettings };
   p.innerHTML = '';
+  if (S.device === 'mouse') return renderMouse(p, S.mview);
   if (!S.keys.length) return;
   fns[S.view](p);
 }
 
 document.querySelectorAll('#nav button').forEach(b => b.onclick = () => switchView(b.dataset.view));
+document.querySelectorAll('#mouseNav button').forEach(b => b.onclick = () => { S.mview = b.dataset.mview; renderAll(); });
+document.querySelectorAll('#devSwitch button').forEach(b => b.onclick = () => switchDevice(b.dataset.dev));
+
+function switchDevice(d) {
+  if (d === S.device) return;
+  if (d === 'mouse' && S.pendingFields.size && S.view === 'actuation') {
+    return modal(`<h2>Save your keyboard changes first?</h2><p>You changed actuation settings that aren't on the keyboard yet.</p>
+      <div class="row"><button class="btn primary" data-a="save">Save to keyboard</button><button class="btn" data-a="drop">Throw them away</button></div>`, (card, close) => {
+      card.querySelector('[data-a=save]').onclick = async () => { close(); await saveActuation(); switchDevice(d); };
+      card.querySelector('[data-a=drop]').onclick = () => { close(); undoActuation(); switchDevice(d); };
+    });
+  }
+  stopLive();
+  S.device = d;
+  renderAll();
+}
 
 function switchView(v) {
   if (v === S.view) return;
@@ -1437,5 +1477,11 @@ function updLine() {
 // ---------------------------------------------------------------- boot
 buildBoard();
 renderAll();
+initMouse({ $, el, esc, toast, guard, modal, CODE_TO_HID, HID_NAMES, PICKER_SECTIONS, DEMO, onMouseChanged: () => {
+  // nothing to show for a missing keyboard when the mouse is right there
+  if (!S.kb && mouseState.dev && S.device === 'keyboard' && !S.autoSwitched) { S.autoSwitched = true; S.device = 'mouse'; }
+  renderAll();
+} });
+if (new URLSearchParams(location.search).get('device') === 'mouse') S.device = 'mouse';
 if (DEMO || 'hid' in navigator) connect();
 else showConnect('This needs the desktop app', 'Open X68 Control from your Start menu.');

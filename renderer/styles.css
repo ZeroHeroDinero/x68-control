@@ -225,7 +225,7 @@ input[type=number], input[type=text] { height: 36px; border-radius: var(--r-sm);
 @keyframes blink { 50% { opacity: .2; } }
 
 /* overlays */
-.overlay { position: fixed; inset: 0; background: rgba(20,23,29,.92); display: grid; place-items: center; z-index: 50; }
+.overlay { position: fixed; inset: 0 0 0 232px; background: rgba(20,23,29,.92); display: grid; place-items: center; z-index: 50; }
 .connect-card { width: 440px; text-align: center; }
 .connect-card h1 { font: 700 30px/1.15 'Barlow SC'; margin: 22px 0 8px; }
 .connect-card p { color: var(--muted); margin: 0 0 22px; }
@@ -247,3 +247,49 @@ input[type=number], input[type=text] { height: 36px; border-radius: var(--r-sm);
 
 .update-bar { display: flex; align-items: center; gap: 12px; padding: 10px 28px; background: var(--release); color: #06201c; font-weight: 600; }
 .update-bar .btn.primary { background: #06201c; color: var(--text); border-color: #06201c; }
+
+/* device switch */
+.devswitch { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--base); border: 1px solid var(--line); border-radius: var(--r-md); }
+.devswitch button { display: flex; align-items: center; justify-content: center; gap: 8px; height: 34px; border: 0; border-radius: 7px; background: none; color: var(--muted); font-weight: 600; cursor: pointer; }
+.devswitch button.on { background: var(--raised-2); color: var(--text); }
+.devswitch .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--faint); }
+.devswitch .dot.live { background: var(--ok); }
+.ico-target { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M11 1h2v4h-2zM11 19h2v4h-2zM1 11h4v2H1zM19 11h4v2h-4z'/%3E%3Ccircle cx='12' cy='12' r='7' fill='none' stroke='black' stroke-width='2'/%3E%3Ccircle cx='12' cy='12' r='2'/%3E%3C/svg%3E"); }
+.ico-mouse { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect x='5' y='2' width='14' height='20' rx='7' fill='none' stroke='black' stroke-width='2'/%3E%3Cpath d='M11 5h2v5h-2z'/%3E%3C/svg%3E"); }
+.ico-sensor { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M2 12h4l3-8 4 16 3-8h6v2h-4.6L13 23 9 8l-1.6 4.5L7.4 14H2z'/%3E%3C/svg%3E"); }
+
+/* mouse: connect */
+.connect-inline { max-width: 460px; margin: 60px auto; text-align: center; }
+.connect-inline h2 { font: 700 26px/1.2 'Barlow SC'; margin: 22px 0 8px; }
+.connect-inline .lead { margin: 0 auto 22px; }
+.mouse-art { width: 76px; height: 116px; margin: 0 auto; border-radius: 38px 38px 34px 34px; background: #2c323d; border: 1px solid var(--line); position: relative; }
+.mouse-art::before { content: ''; position: absolute; left: 50%; top: 0; width: 1px; height: 46px; background: var(--line); }
+.mouse-art::after { content: ''; position: absolute; left: calc(50% - 4px); top: 16px; width: 8px; height: 18px; border-radius: 4px; background: var(--press); }
+
+/* mouse: DPI stages */
+.stages { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin: 16px 0; }
+.stage { padding: 14px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--panel); cursor: pointer; }
+.stage:hover { border-color: var(--muted); }
+.stage.editing { border-color: var(--text); box-shadow: 0 0 0 1px var(--text); }
+.stage-top { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; color: var(--muted); min-height: 32px; }
+.stage-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.stage-badge { font: 700 12px 'Barlow SC'; padding: 3px 8px; border-radius: 99px; background: var(--press); color: #1f1606; }
+.stage-dpi { font: 700 30px/1.1 'Barlow SC'; font-variant-numeric: tabular-nums; margin-top: 8px; }
+.stage.current .stage-dpi { color: var(--press); }
+
+/* mouse: buttons */
+.mouse-svg { width: 100%; height: auto; display: block; }
+.mouse-body { fill: #2c323d; stroke: var(--line); stroke-width: 1.5; }
+.mb path { fill: #3a414e; stroke: #232831; stroke-width: 2; cursor: pointer; transition: fill .1s; }
+.mb:hover path { fill: #454d5b; }
+.mb.sel path { fill: var(--press); }
+.mb:focus-visible { outline: none; }
+.mb:focus-visible path { stroke: var(--focus); }
+.mb-name { fill: var(--text); font: 600 13px 'Barlow SC'; }
+.mb-act { fill: var(--muted); font: 500 12px 'Barlow'; }
+.mb.sel .mb-name { fill: var(--press); }
+.info-table { width: 100%; border-collapse: collapse; }
+.info-table td { padding: 9px 0; border-bottom: 1px solid var(--line); }
+.info-table tr:last-child td { border-bottom: 0; }
+.info-table td:first-child { color: var(--muted); width: 40%; }
+body.mode-mouse #connectOverlay { display: none !important; }

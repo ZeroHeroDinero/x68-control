@@ -4,6 +4,8 @@ const path = require('path');
 
 const VID = 0x3151;
 const PID = 0x502d;
+const MOUSE_VIDS = [0x3554]; // Attack Shark V8 and the rest of its mouse family
+const allowed = d => (d.vendorId === VID && d.productId === PID) || MOUSE_VIDS.includes(d.vendorId);
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -26,10 +28,10 @@ function createWindow() {
 
   const ses = win.webContents.session;
 
-  // Only our keyboard is ever offered to the page.
+  // Only our keyboard and Attack Shark mice are ever offered to the page.
   ses.on('select-hid-device', (event, details, callback) => {
     event.preventDefault();
-    const match = details.deviceList.find(d => d.vendorId === VID && d.productId === PID);
+    const match = details.deviceList.find(allowed);
     callback(match ? match.deviceId : '');
   });
   ses.setPermissionCheckHandler((wc, permission) => ['hid', 'clipboard-sanitized-write', 'clipboard-read'].includes(permission));
@@ -38,7 +40,7 @@ function createWindow() {
   ses.on('will-download', (e, item) => item.setSavePath(path.join(app.getPath('downloads'), item.getFilename())));
   ses.setDevicePermissionHandler(details => {
     if (details.deviceType !== 'hid') return false;
-    return details.device.vendorId === VID && details.device.productId === PID;
+    return allowed(details.device);
   });
 
   // Links open in the normal browser, never inside the app.
