@@ -80,6 +80,29 @@ export const LAYOUT_WIDTH = 16.25;
 export const LAYOUT_ROWS = 5;
 export const BY_POS = new Map(LAYOUT.map(k => [k.pos, k]));
 
+// Attack Shark ships two X68 HE boards that wire the bottom row differently.
+// Keyboard IDs 2270 and 2472 use layout A, ID 2902 (ry5088_x68v2) uses layout B.
+const BOTTOM_ROW = {
+  A: { Win: 17, Alt: 23, Fn: 59, RCtrl: 65 },
+  B: { Win: 11, Alt: 17, Fn: 65, RCtrl: 71 },
+};
+const BOTTOM_KEYS = { Win: LAYOUT.find(k => k.label === 'Win'), Alt: LAYOUT.find(k => k.label === 'Alt'), Fn: LAYOUT.find(k => k.label === 'Fn'), RCtrl: LAYOUT.find(k => k.hid === 228) };
+export let VARIANT = 'A';
+export function variantFor(deviceId, baseMatrix) {
+  if (deviceId === 2902) return 'B';
+  if (deviceId === 2270 || deviceId === 2472) return 'A';
+  // unknown board: layout B has Win at slot 11 and nothing at slot 23
+  const at = p => (baseMatrix || []).slice(p * 4, p * 4 + 4);
+  return at(11).some(Boolean) && !at(23).some(Boolean) ? 'B' : 'A';
+}
+export function setVariant(v) {
+  VARIANT = v;
+  for (const [name, pos] of Object.entries(BOTTOM_ROW[v])) BOTTOM_KEYS[name].pos = pos;
+  BY_POS.clear();
+  for (const k of LAYOUT) BY_POS.set(k.pos, k);
+  GROUPS.all = LAYOUT.filter(k => !k.fixed).map(k => k.pos);
+}
+
 // Handy key groups for quick selection.
 export const GROUPS = {
   all: LAYOUT.filter(k => !k.fixed).map(k => k.pos),

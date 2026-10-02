@@ -2,7 +2,7 @@ import { X68, openKeyboard, VID, PID, SLOTS, MODE, RATES, LIGHT_EFFECTS } from '
 import { MockX68 } from './mock.js';
 import {
   LAYOUT, LAYOUT_WIDTH, LAYOUT_ROWS, BY_POS, GROUPS, HID_NAMES, PICKER_SECTIONS, SPECIAL_ACTIONS,
-  CODE_TO_HID, SWITCH_TYPES, describeAction, sameBytes, shortName,
+  CODE_TO_HID, SWITCH_TYPES, describeAction, sameBytes, shortName, variantFor, setVariant, VARIANT,
 } from './keymap.js';
 
 const $ = sel => document.querySelector(sel);
@@ -130,6 +130,9 @@ async function load(kb) {
   S.rate = await kb.getRate() ?? 8000;
   S.light = await kb.getLight();
   await loadProfileData((f, t) => progress(0.2 + f * 0.8, t));
+  setVariant(variantFor(info.deviceId, S.subs[0]));
+  buildBoard();
+  await repairBottomRow();
   if (!kb._subscribed) { kb.onEvent(onKeyboardEvent); kb._subscribed = true; }
   $('#deviceLine').textContent = `Firmware ${info.version}${DEMO ? ' (preview)' : ''}`;
   $('#connectOverlay').classList.add('hidden');
@@ -151,6 +154,22 @@ async function loadProfileData(onProgress = () => {}) {
   S.pendingDks.clear();
   S.adv = null;
   onProgress(1, 'Done');
+}
+
+// Version 1.1.2 and earlier assumed layout A for every X68 HE. On a layout B board that
+// labelled the physical Alt key as "Win" and the physical Fn key as "Ctrl", so resetting
+// those keys wrote the wrong codes. Put them back if we see that exact pattern.
+async function repairBottomRow() {
+  if (VARIANT !== 'B') return;
+  const fixes = [];
+  if (sameBytes(action(S.subs[0], 17), [0, 0, 227, 0]) || sameBytes(action(S.subs[0], 17), [0, 0, 0, 0])) fixes.push([17, [0, 0, 226, 0]]);
+  if (sameBytes(action(S.subs[0], 65), [0, 0, 228, 0]) || sameBytes(action(S.subs[0], 65), [0, 0, 0, 0])) fixes.push([65, [10, 1, 0, 0]]);
+  if (!fixes.length) return;
+  for (const [pos, act] of fixes) {
+    await S.kb.setKey(S.profile, pos, act, 0);
+    S.subs[0].splice(pos * 4, 4, ...act);
+  }
+  setTimeout(() => toast('Fixed your Alt and Fn keys, they work normally again'), 600);
 }
 
 function onKeyboardEvent({ data }) {
@@ -209,6 +228,8 @@ function buildBoard() {
     b.appendChild(cap);
   }
   layoutBoard();
+  if (b._wired) return;
+  b._wired = true;
   let dragging = null;
   b.addEventListener('mousedown', e => {
     const cap = e.target.closest('.cap');
@@ -427,6 +448,7 @@ document.querySelectorAll('#profiles button').forEach(b => b.onclick = () => {
     await S.kb.setProfile(p);
     S.profile = p;
     await loadProfileData();
+    await repairBottomRow();
     S.light = await S.kb.getLight();
     renderAll();
   }, `Profile ${p + 1} is active`);
