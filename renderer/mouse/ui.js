@@ -425,7 +425,9 @@ function renderInfo(p) {
   p.appendChild(H.el(`<div><h2>Mouse settings</h2><p class="lead">Device details, reset and help.</p></div>`));
   const grid = H.el('<div class="panel-grid"><div class="stack" id="iL"></div><div class="stack" id="iR"></div></div>');
   p.appendChild(grid);
-  const rows = [['Name', dev.dev.productName || 'Attack Shark mouse'], ['Connection', dev.wired ? 'Cable' : 'Wireless receiver'], ['Battery', M.battery ? `${M.battery.level}%${M.battery.charging ? ', charging' : ''}` : dev.wired ? 'Charging from cable' : 'Unknown'], ['Firmware', M.fw || 'Unknown'], ['Sensor', `PAW${dev.sensor}`], ['Model number', `${M.info.mid}${dev.model ? '' : ' (not in the official list, using safe defaults)'}`]];
+  const pname = dev.dev.productName || '';
+  const model = (pname.match(/\b([VRXK]\d+[A-Z]*)\b/i)?.[1] || 'V8').toUpperCase();
+  const rows = [['Name', `Attack Shark ${model}`], ['Model', model], ['Connection', dev.wired ? 'Cable' : 'Wireless receiver'], ['Battery', M.battery ? `${M.battery.level}%${M.battery.charging ? ', charging' : ''}` : dev.wired ? 'Charging from cable' : 'Unknown'], ['Firmware', M.fw || 'Unknown'], ['Sensor', `PAW${dev.sensor}`]];
   grid.querySelector('#iL').appendChild(H.el(`<div class="block"><table class="info-table">${rows.map(([k, v]) => `<tr><td>${k}</td><td>${H.esc(v)}</td></tr>`).join('')}</table></div>`));
   const R = grid.querySelector('#iR');
   const diag = H.el('<div class="block stack" style="gap:10px"><h3 style="margin:0">Something not working?</h3><p class="note" style="margin:0">Copies a short technical report you can paste to whoever is helping you.</p><button class="btn" style="align-self:flex-start">Copy diagnostic info</button></div>');
