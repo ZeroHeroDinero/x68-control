@@ -370,6 +370,7 @@ window.addEventListener('keyup', e => {
 
 // ---------------------------------------------------------------- shell
 function renderShell() {
+  window.x68app?.trayState?.({ connected: !!S.kb && !!S.subs?.[0], profile: S.profile });
   const mouse = S.device === 'mouse';
   document.body.classList.toggle('mode-mouse', mouse);
   $('#nav').classList.toggle('hidden', mouse);
@@ -481,10 +482,9 @@ function switchView(v) {
   renderAll();
 }
 
-document.querySelectorAll('#profiles button').forEach(b => b.onclick = () => {
-  const p = +b.dataset.p;
-  if (p === S.profile || !S.kb) return;
-  guard(async () => {
+function switchProfile(p) {
+  if (p === S.profile || !S.kb) return Promise.resolve();
+  return guard(async () => {
     await S.kb.setProfile(p);
     S.profile = p;
     await loadProfileData();
@@ -492,7 +492,10 @@ document.querySelectorAll('#profiles button').forEach(b => b.onclick = () => {
     S.light = await S.kb.getLight();
     renderAll();
   }, `Profile ${p + 1} is active`);
-});
+}
+document.querySelectorAll('#profiles button').forEach(b => b.onclick = () => switchProfile(+b.dataset.p));
+// the taskbar icon can switch profiles while the window is hidden
+window.x68app?.onTrayProfile?.(p => switchProfile(p).then(() => window.x68app.trayState({ connected: !!S.kb, profile: S.profile, announce: true })));
 
 $('#connectBtn').onclick = () => connect(true);
 window.addEventListener('resize', () => layoutBoard());
