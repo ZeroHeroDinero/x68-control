@@ -1162,6 +1162,7 @@ function renderLighting(p) {
   }
   if (fx.color !== false) {
     const c = el(`<div class="stack" style="gap:10px"><label class="toggle ok"><input type="checkbox" ${L.rainbow ? 'checked' : ''}><span class="sw"></span><span>Rainbow colors</span></label>
+      <p class="note ${L.rainbow ? '' : 'hidden'}" style="margin:0">Turn this off to pick your own color. To color single keys, choose My patterns.</p>
       <div class="row ${L.rainbow ? 'hidden' : ''}" id="colorRow"><div class="swatches"></div><input type="color" value="#${L.rgb.toString(16).padStart(6, '0')}" title="Any color"></div></div>`);
     c.querySelector('input[type=checkbox]').onchange = e => { L.rainbow = e.target.checked; queueLight(); renderPanel(); };
     for (const sw of SWATCH) {
