@@ -293,3 +293,14 @@ input[type=number], input[type=text] { height: 36px; border-radius: var(--r-sm);
 .info-table tr:last-child td { border-bottom: 0; }
 .info-table td:first-child { color: var(--muted); width: 40%; }
 body.mode-mouse #connectOverlay { display: none !important; }
+
+/* mouse test tools and sens calculator */
+.ico-check { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='9' fill='none' stroke='black' stroke-width='2'/%3E%3Cpath d='M7.5 12.5l3 3 6-6' fill='none' stroke='black' stroke-width='2.2'/%3E%3C/svg%3E"); }
+.test-pad { height: 200px; border: 1px dashed var(--line); border-radius: var(--r-md); background: var(--raised); display: grid; place-items: center; color: var(--muted); user-select: none; cursor: crosshair; transition: background .08s; }
+.test-pad.hit { background: var(--line); }
+.calc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.calc-grid label { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: 13px; }
+.calc-grid input { width: 100%; }
+.calc-big { font-size: 22px; font-weight: 700; }
+.calc-out { display: flex; flex-direction: column; gap: 6px; }
+.warn-text { color: #ff6b6b; font-weight: 600; }

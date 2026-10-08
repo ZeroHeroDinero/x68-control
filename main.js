@@ -1,5 +1,6 @@
 const { app, BrowserWindow, session, shell, Menu, ipcMain, Tray, Notification, nativeImage } = require('electron');
 const fs = require('fs');
+const { execFile } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 const path = require('path');
 
@@ -12,6 +13,9 @@ let win = null;
 let tray = null;
 let quitting = false;
 const kbState = { connected: false, profile: 0 };
+const mouseState = { connected: false, wired: true, level: null, charging: false, lowWarned: false };
+const AUTO_DEFAULT = { enabled: false, game: 1, normal: 0 };
+const auto = () => ({ ...AUTO_DEFAULT, ...(readPrefs().auto || {}) });
 const startHidden = process.argv.includes('--hidden');
 
 // small settings file for things only the app needs to remember
@@ -40,16 +44,25 @@ function buildTrayMenu() {
     enabled: kbState.connected,
     click: () => win?.webContents.send('tray-profile', p),
   }));
+  const a = auto();
+  const battery = mouseState.connected && !mouseState.wired && mouseState.level != null
+    ? [{ label: `Mouse battery ${mouseState.level}%${mouseState.charging ? ' (charging)' : ''}`, enabled: false }, { type: 'separator' }] : [];
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Open X68 Control', click: showWindow },
     { type: 'separator' },
+    ...battery,
     ...(kbState.connected ? profiles : [{ label: 'Keyboard not connected', enabled: false }]),
+    { label: `Switch to profile ${a.game + 1} when Siege opens`, type: 'checkbox', checked: a.enabled,
+      click: i => setAuto({ enabled: i.checked }) },
     { type: 'separator' },
     { label: 'Start with Windows', type: 'checkbox', checked: startup,
       click: i => { app.setLoginItemSettings({ openAtLogin: i.checked, args: ['--hidden'] }); buildTrayMenu(); } },
     { label: 'Quit', click: () => { quitting = true; app.quit(); } },
   ]));
-  tray.setToolTip(kbState.connected ? `X68 Control · profile ${kbState.profile + 1}` : 'X68 Control');
+  const tip = ['X68 Control'];
+  if (kbState.connected) tip.push(`Keyboard profile ${kbState.profile + 1}`);
+  if (battery.length) tip.push(`Mouse ${mouseState.level}%`);
+  tray.setToolTip(tip.join(' · '));
 }
 
 function createTray() {
@@ -64,6 +77,60 @@ function createTray() {
     if (changed) buildTrayMenu();
     if (s.announce && s.connected && !win?.isVisible()) notify(`Keyboard profile ${kbState.profile + 1} is on`);
   });
+  ipcMain.on('mouse-state', (_e, m) => {
+    const before = JSON.stringify([mouseState.connected, mouseState.wired, mouseState.level, mouseState.charging]);
+    Object.assign(mouseState, { connected: !!m.connected, wired: !!m.wired, level: m.level ?? null, charging: !!m.charging });
+    if (mouseState.connected && !mouseState.wired && mouseState.level != null && !mouseState.charging) {
+      if (mouseState.level <= 15 && !mouseState.lowWarned) {
+        mouseState.lowWarned = true;
+        notify(`Mouse battery is at ${mouseState.level}%. Plug in the cable to charge, it keeps working while it charges.`);
+      }
+      if (mouseState.level >= 25) mouseState.lowWarned = false;
+    }
+    if (mouseState.charging) mouseState.lowWarned = false;
+    if (JSON.stringify([mouseState.connected, mouseState.wired, mouseState.level, mouseState.charging]) !== before) buildTrayMenu();
+  });
+  ipcMain.handle('auto-get', () => auto());
+  ipcMain.handle('auto-set', (_e, a) => setAuto(a));
+  setInterval(checkSiege, 4000);
+}
+
+// ---------------------------------------------------------------- Siege auto-switch
+// Every few seconds, look for Siege in the list of running programs. When it starts, the
+// keyboard moves to the game profile. When it closes, it goes back to the normal one.
+const siege = { running: false, applied: false, switchedByUs: false };
+
+function setAuto(a) {
+  writePrefs({ auto: { ...auto(), ...a } });
+  buildTrayMenu();
+  win?.webContents.send('auto-changed', auto());
+  return auto();
+}
+
+function siegeRunning() {
+  return new Promise(resolve => {
+    if (process.platform !== 'win32') return resolve(false);
+    execFile('tasklist', ['/NH', '/FO', 'CSV'], { windowsHide: true, maxBuffer: 4 * 1024 * 1024 }, (err, out) => {
+      resolve(!err && /"RainbowSix[^"]*\.exe"/i.test(out));
+    });
+  });
+}
+
+async function checkSiege() {
+  const a = auto();
+  if (!a.enabled) { siege.running = false; siege.applied = false; return; }
+  const running = await siegeRunning();
+  if (running && !siege.running) { siege.applied = false; siege.switchedByUs = false; }
+  siege.running = running;
+  if (running && !siege.applied && kbState.connected) {
+    siege.applied = true;
+    if (kbState.profile !== a.game) { siege.switchedByUs = true; win?.webContents.send('tray-profile', a.game); }
+  }
+  if (!running && siege.switchedByUs) {
+    siege.switchedByUs = false;
+    siege.applied = false;
+    if (kbState.connected && kbState.profile !== a.normal) win?.webContents.send('tray-profile', a.normal);
+  }
 }
 
 function createWindow() {

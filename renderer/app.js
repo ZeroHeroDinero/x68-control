@@ -1305,6 +1305,36 @@ function stopRecording() {
 }
 
 // ---------------------------------------------------------------- settings view
+// Siege auto-switch: the app watches for Siege and flips the keyboard profile for you.
+function autoSwitchBlock() {
+  const b = el(`<div class="block stack" style="gap:12px"><h3 style="margin:0">Siege profile switch</h3>
+    <label class="toggle ok"><input type="checkbox"><span class="sw"></span><span>Switch profile when Siege opens</span></label>
+    <div class="stack" id="autoOpts" style="gap:10px">
+      <div class="row"><span style="font-weight:600">While Siege is open</span><span class="spacer"></span><div class="seg" id="autoGame"></div></div>
+      <div class="row"><span style="font-weight:600">After Siege closes</span><span class="spacer"></span><div class="seg" id="autoNormal"></div></div>
+    </div>
+    <p class="note" style="margin:0">Works while the app is open or sitting in the taskbar corner. Turn on Start with Windows from the taskbar icon so you never have to think about it.</p></div>`);
+  const draw = a => {
+    b.querySelector('input').checked = a.enabled;
+    b.querySelector('#autoOpts').style.opacity = a.enabled ? 1 : 0.5;
+    for (const [id, key] of [['#autoGame', 'game'], ['#autoNormal', 'normal']]) {
+      const seg = b.querySelector(id);
+      seg.innerHTML = '';
+      for (let p = 0; p < 4; p++) {
+        const btn = el(`<button class="${a[key] === p ? 'on' : ''}">${p + 1}</button>`);
+        btn.onclick = async () => { draw(await window.x68app.setAuto({ [key]: p })); toast('Saved'); };
+        seg.appendChild(btn);
+      }
+    }
+  };
+  b.querySelector('input').onchange = async e => {
+    draw(await window.x68app.setAuto({ enabled: e.target.checked }));
+    toast(e.target.checked ? 'Profile switches on its own when Siege opens' : 'Siege profile switch is off');
+  };
+  window.x68app.getAuto().then(draw);
+  return b;
+}
+
 function renderSettings(p) {
   const O = S.options;
   p.appendChild(el('<div><h2>Settings</h2><p class="lead">These apply to the current profile and save as soon as you change them.</p></div>'));
@@ -1312,6 +1342,7 @@ function renderSettings(p) {
   p.appendChild(grid);
   const left = grid.querySelector('#sLeft');
   const right = grid.querySelector('#sRight');
+  if (window.x68app?.getAuto) left.appendChild(autoSwitchBlock());
 
   const segBlock = (title, hint, options, value, onPick) => {
     const b = el(`<div class="block stack" style="gap:10px"><h3 style="margin:0">${title}</h3><div class="seg"></div><p class="note" style="margin:0">${hint}</p></div>`);

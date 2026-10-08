@@ -6,5 +6,9 @@ contextBridge.exposeInMainWorld('x68app', {
   onUpdate: cb => ipcRenderer.on('update-status', (_e, s) => cb(s)),
   // taskbar icon
   trayState: s => ipcRenderer.send('tray-state', s),
+  mouseState: m => ipcRenderer.send('mouse-state', m),
+  getAuto: () => ipcRenderer.invoke('auto-get'),
+  setAuto: a => ipcRenderer.invoke('auto-set', a),
+  onAutoChanged: cb => ipcRenderer.on('auto-changed', (_e, a) => cb(a)),
   onTrayProfile: cb => ipcRenderer.on('tray-profile', (_e, p) => cb(p)),
 });

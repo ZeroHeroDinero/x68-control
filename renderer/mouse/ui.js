@@ -32,7 +32,10 @@ export function initMouse(helpers) {
 
 export const mouseState = M;
 
-function refresh() { H.onMouseChanged?.(); }
+function refresh() {
+  window.x68app?.mouseState?.({ connected: !!M.dev && M.online, wired: !!M.dev?.wired, level: M.battery?.level ?? null, charging: !!M.battery?.charging });
+  H.onMouseChanged?.();
+}
 
 export async function connectMouse(viaPicker = false) {
   try {
@@ -108,6 +111,7 @@ export function mouseSubtitle() {
 
 export function renderMouse(p, view) {
   M.view = view;
+  if (view === 'mtest') return renderTest(p);
   if (!M.dev) return p.appendChild(connectCard());
   if (!M.online || !M.cfg) return p.appendChild(H.el(`<div class="empty" style="padding:80px 0"><h2 style="margin:0 0 8px">Wake your mouse</h2><p class="lead" style="margin:0 auto">It's paired but asleep. Move it or click a button and the settings load on their own.</p></div>`));
   ({ dpi: renderDpi, buttons: renderButtons, sensor: renderSensor, mouseinfo: renderInfo })[view](p);
@@ -191,6 +195,100 @@ function renderDpi(p) {
   }
   ed.querySelector('input[type=color]').onchange = e => setCol(parseInt(e.target.value.slice(1), 16));
   p.appendChild(ed);
+  p.appendChild(sensCalc(c.stages[c.currentStage]?.dpi ?? s.dpi));
+}
+
+// ---------------------------------------------------------------- sens calculator
+// Changing DPI changes how far your crosshair moves. This works out the Siege sens that cancels it out.
+function sensCalc(activeDpi) {
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem('sensCalc') || '{}'); } catch {}
+  const b = H.el(`<div class="block stack" style="gap:12px">
+    <h3 style="margin:0">Keep your aim the same</h3>
+    <p class="note" style="margin:0">Changed your DPI? Enter what you used before and the app works out the Siege sens that feels identical.</p>
+    <div class="calc-grid">
+      <label>Old DPI<input type="number" id="oDpi" min="50" max="42000" value="${saved.oldDpi ?? 400}"></label>
+      <label>Old Siege sens<input type="number" id="oSens" min="1" max="100" value="${saved.oldSens ?? ''}" placeholder="e.g. 10"></label>
+      <label>New DPI<input type="number" id="nDpi" min="50" max="42000" value="${activeDpi}"></label>
+    </div>
+    <div class="calc-out" id="calcOut"></div></div>`);
+  const out = b.querySelector('#calcOut');
+  const calc = () => {
+    const oDpi = +b.querySelector('#oDpi').value, oSens = +b.querySelector('#oSens').value, nDpi = +b.querySelector('#nDpi').value;
+    try { localStorage.setItem('sensCalc', JSON.stringify({ oldDpi: oDpi, oldSens: oSens || undefined })); } catch {}
+    if (!oDpi || !oSens || !nDpi) { out.innerHTML = '<span class="note" style="margin:0">Fill in your old Siege sens to see the answer.</span>'; return; }
+    const exact = oSens * oDpi / nDpi;
+    const whole = Math.max(1, Math.min(100, Math.round(exact)));
+    const off = Math.abs(whole - exact) / exact * 100;
+    out.innerHTML = `<div class="calc-big">Set Siege sens to <b>${whole}</b></div>
+      <div class="note" style="margin:0">Exact match is ${exact.toFixed(2)}. ${off < 0.5 ? 'Siege takes whole numbers and this one lands spot on.' : `Siege only takes whole numbers, so ${whole} is ${off.toFixed(1)}% ${whole > exact ? 'faster' : 'slower'}. Doubling or halving your old DPI always lands exactly.`} Set both horizontal and vertical sens to this. Your ADS sliders stay the same.</div>`;
+  };
+  b.querySelectorAll('input').forEach(i => i.oninput = calc);
+  calc();
+  return b;
+}
+
+// ---------------------------------------------------------------- test tools
+const T = { stamps: [], peak: 0, timer: null, clicks: {}, last: {}, flags: {} };
+const CLICK_NAMES = ['Left', 'Wheel', 'Right', 'Back', 'Forward'];
+
+function renderTest(p) {
+  p.appendChild(H.el(`<div><h2>Test your mouse</h2><p class="lead">Check that the polling rate is real and that no button double clicks. Nothing here changes your settings.</p></div>`));
+  const grid = H.el('<div class="panel-grid"><div class="stack" id="tL"></div><div class="stack" id="tR"></div></div>');
+  p.appendChild(grid);
+
+  const rate = H.el(`<div class="block stack" style="gap:12px"><h3 style="margin:0">Polling rate</h3>
+    <div class="test-pad" id="ratePad"><span>Move the mouse in fast circles in here</span></div>
+    <div class="row"><div><div class="calc-big" id="rateNow">0 Hz</div><div class="note" style="margin:0">right now</div></div><span class="spacer"></span>
+      <div style="text-align:right"><div class="calc-big" id="ratePeak">0 Hz</div><div class="note" style="margin:0">highest seen</div></div></div>
+    <p class="note" style="margin:0">${M.cfg ? `Your mouse is set to ${fmtDpi(M.cfg.rate)} Hz. ` : ''}Windows can limit what apps see, so a reading a bit under your setting is normal. A reading near it confirms it works.</p></div>`);
+  grid.querySelector('#tL').appendChild(rate);
+  const pad = rate.querySelector('#ratePad');
+  const now = rate.querySelector('#rateNow'), peak = rate.querySelector('#ratePeak');
+  T.stamps = [];
+  const push = e => {
+    const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [e];
+    for (const ev of (list.length ? list : [e])) T.stamps.push(ev.timeStamp);
+  };
+  if ('onpointerrawupdate' in window) pad.addEventListener('pointerrawupdate', push);
+  else pad.addEventListener('pointermove', push);
+  clearInterval(T.timer);
+  T.timer = setInterval(() => {
+    if (!document.body.contains(pad)) { clearInterval(T.timer); return; }
+    const t = performance.now();
+    T.stamps = T.stamps.filter(x => t - x < 500);
+    const hz = T.stamps.length * 2;
+    T.peak = Math.max(T.peak, hz);
+    now.textContent = `${fmtDpi(hz)} Hz`;
+    peak.textContent = `${fmtDpi(T.peak)} Hz`;
+  }, 250);
+
+  const clk = H.el(`<div class="block stack" style="gap:12px"><h3 style="margin:0">Double click check</h3>
+    <div class="test-pad" id="clickPad"><span>Click every button in here, as fast as you like</span></div>
+    <table class="info-table" id="clickTable"></table>
+    <div class="row"><p class="note" style="margin:0">Two clicks closer than 40 ms is faster than a finger can go, so it gets flagged. If one shows up, raise Debounce one step on the Sensor page.</p><span class="spacer"></span><button class="btn small" id="clickReset">Reset</button></div></div>`);
+  grid.querySelector('#tR').appendChild(clk);
+  const cpad = clk.querySelector('#clickPad'), table = clk.querySelector('#clickTable');
+  const draw = () => {
+    table.innerHTML = CLICK_NAMES.map((n, i) => `<tr><td>${n}</td><td>${T.clicks[i] || 0} click${T.clicks[i] === 1 ? "" : "s"}${T.last[i] ? ` · last gap ${T.last[i]} ms` : ''}${T.flags[i] ? ` · <span class="warn-text">${T.flags[i]} double click${T.flags[i] > 1 ? 's' : ''}</span>` : ''}</td></tr>`).join('');
+  };
+  const downAt = {};
+  cpad.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const b = e.button, t = e.timeStamp;
+    T.clicks[b] = (T.clicks[b] || 0) + 1;
+    if (downAt[b] != null) {
+      const gap = Math.round(t - downAt[b]);
+      T.last[b] = gap;
+      if (gap < 40) T.flags[b] = (T.flags[b] || 0) + 1;
+    }
+    downAt[b] = t;
+    cpad.classList.add('hit'); setTimeout(() => cpad.classList.remove('hit'), 80);
+    draw();
+  });
+  for (const ev of ['contextmenu', 'auxclick', 'mouseup']) cpad.addEventListener(ev, e => e.preventDefault());
+  clk.querySelector('#clickReset').onclick = () => { T.clicks = {}; T.last = {}; T.flags = {}; draw(); };
+  draw();
 }
 
 // ---------------------------------------------------------------- buttons
