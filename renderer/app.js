@@ -155,6 +155,15 @@ async function loadProfileData(onProgress = () => {}) {
   S.saved = clone(S.keys);
   S.pendingFields.clear();
   S.pendingDks.clear();
+  // Older settings could leave a release point deeper than the actuation point, which makes
+  // held keys flicker. Line them up and let the person save the fix.
+  const bad = S.keys.filter(k => k && !k.rt && k.release > k.press + 1e-6);
+  if (bad.length) {
+    for (const k of bad) k.release = k.press;
+    S.pendingFields.add('release');
+    const n = bad.length;
+    setTimeout(() => toast(`Found ${n} key${n === 1 ? '' : 's'} that could cut out while held and lined them up. Open Actuation and press Save to keyboard.`), 1500);
+  }
   S.adv = null;
   onProgress(1, 'Done');
 }
@@ -580,13 +589,17 @@ function sliderField(f, list) {
     <div class="hint">${def.hint}</div></div>`);
   const range = node.querySelector('input');
   const valEl = node.querySelector('.val');
+  let clamped = false;
   const apply = val => {
     val = Math.max(def.min, Math.min(def.max, Math.round(val / step()) * step()));
+    if (f === 'release') val = Math.min(val, ...list.map(k => k.press));
     for (const k of list) k[f] = val;
-    if (f === 'press' && list.some(k => k.release > val + 1e-6) && !S.pendingFields.has('release')) {
-      // keep release point at or above the actuation point so the key always lets go
+    // The release point can never be deeper than the actuation point. If it is, a held key
+    // sits between the two and flickers on and off, which feels like the key cutting out.
+    if (f === 'press' && list.some(k => k.release > val + 1e-6)) {
       for (const k of list) if (k.release > val) k.release = val;
       S.pendingFields.add('release');
+      clamped = true;
     }
     S.pendingFields.add(f);
     range.value = val;
@@ -598,6 +611,7 @@ function sliderField(f, list) {
     ensureSaveBar();
   };
   range.oninput = () => apply(+range.value);
+  range.addEventListener('change', () => { if (clamped) { clamped = false; renderPanel(); } });
   node.querySelectorAll('.steppers button').forEach(b => b.onclick = () => apply(+range.value + (+b.dataset.d) * (f.startsWith('rt') ? 0.01 : 0.05)));
   return node;
 }
@@ -687,12 +701,12 @@ function stopLive() {
 }
 
 const PRESETS = [
-  { name: 'Siege competitive', desc: 'WASD and lean keys fire at 0.4 mm with Rapid Trigger, everything else at 1.2 mm.', apply: () => {
+  { name: 'Siege competitive', desc: 'WASD and lean keys fire at 0.5 mm with Rapid Trigger. Everything else, including push to talk, fires at 1.5 mm and never cuts out when held.', apply: () => {
     const fast = new Set([...GROUPS.wasd, 8, 20]); // + Q, E for leaning
     for (const k of editable()) {
       const c = S.keys[k.pos];
-      if (fast.has(k.pos)) Object.assign(c, { press: 0.4, release: 0.4, rt: true, rtPress: 0.15, rtRelease: 0.15 });
-      else Object.assign(c, { press: 1.2, release: 1.2, rt: false });
+      if (fast.has(k.pos)) Object.assign(c, { press: 0.5, release: 0.5, rt: true, rtPress: 0.25, rtRelease: 0.25 });
+      else Object.assign(c, { press: 1.5, release: 1.3, rt: false });
     }
   } },
   { name: 'Rapid Trigger everywhere', desc: 'Every key fires at 0.5 mm and resets the instant it lifts.', apply: () => {
